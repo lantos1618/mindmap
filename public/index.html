@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket with HTMX</title>
+    <!-- Include HTMX -->
+    <script src="https://unpkg.com/htmx.org"></script>
+    <!-- include tailwind -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.0.2/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body>
+
+<div id="data-container" class="p-4">
+    <!-- This is where data from the WebSocket will be displayed -->
+</div>
+
+<input 
+    class="p-4"
+type="text" id="message" placeholder="Type a message" onkeydown="if (event.key === 'Enter') sendMessage()">
+
+<script>
+    // JavaScript to handle WebSocket communication
+    const ws = new WebSocket('ws://localhost:3000/');
+
+    
+
+    ws.onmessage = function(event) {
+        const message = JSON.parse(event.data);
+        const message_nonce = message.message_nonce;
+        
+        if (message.type === 'data') {
+            // console.log(Object.values(message.content))
+            const data = Uint8Array.from(Object.values(message.content));
+            const textDecoder = new TextDecoder('utf-8');
+            const string = textDecoder.decode(data);
+            const json = JSON.parse(string);
+            const choices = json.choices;
+
+            const message_data = choices[0].delta.content;
+
+            // check to see if nonce div exists or create it
+            if (document.getElementById(`message_nonce-${message_nonce}`)) {
+                const nonce_container = document.getElementById(`message_nonce-${message_nonce}`);
+                nonce_container.innerHTML += message_data;
+            } else {
+                const nonce_container = document.createElement('div');
+                nonce_container.id = `message_nonce-${message_nonce}`;
+                nonce_container.innerHTML += message_data;
+                document.getElementById('data-container').appendChild(nonce_container);
+            }
+        }
+    };
+
+    // send "message"
+    //         ws.send(JSON.stringify({ content: 'Hello, WebSocket!', role: 'assistant', name: 'John Doe' }));
+
+    function sendMessage() {
+        const message = document.getElementById('message').value;
+        console.log(message)
+        ws.send(JSON.stringify({ content: message, role: 'assistant', name: 'John Doe' }));
+    }
+</script>
+
+</body>
+</html>
