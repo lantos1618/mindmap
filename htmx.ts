@@ -15,7 +15,7 @@ export class HtmlNode {
 
     toString() {
         const attrs = Object.entries(this.attributes)
-                            .map(([key, value]) => `${key}="${value}"`)
+                            .map(([key, value]) => value ? `${key}="${value}"` : key)
                             .join(' ');
         const attrStr = attrs ? ` ${attrs}` : '';
         const children = this.children.map(child => typeof child === 'string' ? child : child.toString()).join('');
@@ -101,4 +101,86 @@ export function P(attributes: Attributes = {}, ...children: (string | HtmlNode)[
 
 export function Input(attributes: Attributes = {}) {
     return new HtmlNode('input', [], attributes);
+}
+
+export function Button(attributes: Attributes = {}, ...children: (string | HtmlNode)[]) {
+    return new HtmlNode('button', children, attributes);
+}
+
+export function Form(attributes: Attributes = {}, ...children: (string | HtmlNode)[]) {
+    return new HtmlNode('form', children, attributes);
+}
+
+export function Label(attributes: Attributes = {}, ...children: (string | HtmlNode)[]) {
+    return new HtmlNode('label', children, attributes);
+}
+
+export function Select(attributes: Attributes = {}, ...children: (string | HtmlNode)[]) {
+    return new HtmlNode('select', children, attributes);
+}
+
+export function Option(attributes: Attributes = {}, ...children: (string | HtmlNode)[]) {
+    return new HtmlNode('option', children, attributes);
+}
+
+export function Ul(attributes: Attributes = {}, ...children: (string | HtmlNode)[]) {
+    return new HtmlNode('ul', children, attributes);
+}
+
+export function Ol(attributes: Attributes = {}, ...children: (string | HtmlNode)[]) {
+    return new HtmlNode('ol', children, attributes);
+}
+
+export function Li(attributes: Attributes = {}, ...children: (string | HtmlNode)[]) {
+    return new HtmlNode('li', children, attributes);
+}
+
+export function Table(attributes: Attributes = {}, ...children: (string | HtmlNode)[]) {
+    return new HtmlNode('table', children, attributes);
+}
+
+export function Tr(attributes: Attributes = {}, ...children: (string | HtmlNode)[]) {
+    return new HtmlNode('tr', children, attributes);
+}
+
+export function Th(attributes: Attributes = {}, ...children: (string | HtmlNode)[]) {
+    return new HtmlNode('th', children, attributes);
+}
+
+export function Td(attributes: Attributes = {}, ...children: (string | HtmlNode)[]) {
+    return new HtmlNode('td', children, attributes);
+}
+
+export function Tbody(attributes: Attributes = {}, ...children: (string | HtmlNode)[]) {
+    return new HtmlNode('tbody', children, attributes);
+}
+
+export function Thead(attributes: Attributes = {}, ...children: (string | HtmlNode)[]) {
+    return new HtmlNode('thead', children, attributes);
+}
+
+export function Tfoot(attributes: Attributes = {}, ...children: (string | HtmlNode)[]) {
+    return new HtmlNode('tfoot', children, attributes);
+}
+
+export function Canvas(attributes: Attributes = {}) {
+    return new HtmlNode('canvas', [], attributes);
+}
+
+
+export function Svg(attributes: Attributes = {}, ...children: (string | HtmlNode)[]) {
+    return new HtmlNode('svg', children, attributes);
+}
+
+export function Img(attributes: Attributes = {}) {
+    return new HtmlNode('img', [], attributes);
+}
+
+
+export function Video(attributes: Attributes = {}, ...children: (string | HtmlNode)[]) {
+    return new HtmlNode('video', children, attributes);
+}
+
+export function Source(attributes: Attributes = {}) {
+    return new HtmlNode('source', [], attributes);
 }

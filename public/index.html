@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CLMTrackr Example</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clmtrackr/1.1.2/clmtrackr.min.js"></script>
+</head>
+<body>
+    <video id="video" width="400" height="300" autoplay></video>
+    <canvas id="canvas" width="400" height="300"></canvas>
+    <script>
+        // Access the user's webcam
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(function(stream) {
+                const video = document.getElementById('video');
+                video.srcObject = stream;
+                video.play();
+                startTracking();
+            })
+            .catch(function(err) {
+                console.log("An error occurred: " + err);
+            });
+
+        function startTracking() {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            const ctracker = new clm.tracker();
+            ctracker.init();
+            ctracker.start(video);
+
+            function drawLoop() {
+                requestAnimationFrame(drawLoop);
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctracker.draw(canvas);
+            }
+            drawLoop();
+        }
+    </script>
+</body>
+</html>

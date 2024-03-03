@@ -4,6 +4,7 @@ import { Server } from 'ws';
 import Groq from 'groq-sdk';
 import { randomUUID } from 'crypto';
 import { Body, Div, H1, Head, Html, Input, Link, Script, Style } from './htmx';
+import { bottleneck } from './bottleneck';
 
 
 const app = express();
@@ -19,7 +20,6 @@ wss.on('connection', (ws) => {
     console.log('Client connected');
 
     ws.on('message', async (message) => {
-        // console.log('Received:', message.toString());
 
         message = JSON.parse(message.toString());
         const message_nonce = randomUUID();
@@ -43,8 +43,13 @@ wss.on('connection', (ws) => {
                     ws.send(JSON.stringify({ type: 'end' })); // Signal end of data
                     return;
                 }
-                console.log('Received:', message, value, message_nonce);
-                ws.send(JSON.stringify({ type: 'data', content: value, message_nonce: message_nonce })); // Send data chunk
+                // decode Uint8Array to string
+                const textDecoder = new TextDecoder('utf-8');
+                const content_string = textDecoder.decode(value);
+                const json = JSON.parse(content_string);
+                const content = json;
+
+                ws.send(JSON.stringify({ type: 'data', content: content, message_nonce: message_nonce })); // Send data chunk
                 pushData(); // Continue reading
             }
 
@@ -76,12 +81,14 @@ app.get('/test/increment', (req, res) => {
 
 })
 
+app.get('/bottleneck', bottleneck);
+
 
 app.get('/test', (req, res) => {
 
 
     function client_script() {
-        document.addEventListener("DOMContentLoaded", () => {
+        window.addEventListener("load", () => { 
             console.log('client script loaded');
             let hello = document.getElementById('hello');
             if (!hello) return;
@@ -94,13 +101,13 @@ app.get('/test', (req, res) => {
 
     }
 
-    function client_ws() {
 
-        document.addEventListener("DOMContentLoaded", () => {
+    function client_ws() {
+        let messages = {};
+        window.addEventListener("load", () => { 
             console.log('client ws loaded');
             // JavaScript to handle WebSocket communication
             const ws = new WebSocket('ws://localhost:3000/');
-
 
 
             ws.onmessage = function (event) {
@@ -109,29 +116,41 @@ app.get('/test', (req, res) => {
 
                 if (message.type === 'data') {
                     // console.log(Object.values(message.content))
-                    const data = Uint8Array.from(Object.values(message.content));
-                    const textDecoder = new TextDecoder('utf-8');
-                    const string = textDecoder.decode(data);
-                    const json = JSON.parse(string);
-                    const choices = json.choices;
+                    // const data = Uint8Array.from(Object.values(message.content));
+                    // const textDecoder = new TextDecoder('utf-8');
+                    // const string = textDecoder.decode(data);
+                    // const json = JSON.parse(string);
+                    // const choices = json.choices;
+                    const choices = message.content.choices;
 
                     const message_data = choices[0].delta.content;
+
                     if (!message_data) return;
+                    if (!messages[message_nonce]) messages[message_nonce] = '';
+
+                    messages[message_nonce] += message_data;
 
                     // check to see if nonce div exists or create it
                     if (document.getElementById(`message_nonce-${message_nonce}`)) {
                         const message_container = document.getElementById(`message_nonce-${message_nonce}`);
                         if (!message_container) return;
-                        message_container.innerHTML += message_data;
+                        message_container.innerHTML = marked.parse(messages[message_nonce]);
                     } else {
-                        const message_container = document.createElement('pre');
-                        message_container.className = 'border-2 border-gray-300 rounded-md p-4 m-4 whitespace-pre-wrap	';
+                        const message_container = document.createElement('content');
+                        message_container.className = 'p-4 m-4 whitespace-pre-wrap	';
                         message_container.id = `message_nonce-${message_nonce}`;
-                        message_container.innerHTML += message_data;
+                        message_container.innerHTML  = marked.parse(messages[message_nonce]);
+                       
                         let container = document.getElementById('data-container');
                         if (!container) return;
                         container.appendChild(message_container);
                     }
+
+                    const code_blocks = document.querySelectorAll('pre code');
+                    code_blocks.forEach((block) => {
+                        Prism.highlightElement(block);
+                    });
+
                 }
             };
 
@@ -156,7 +175,7 @@ app.get('/test', (req, res) => {
     }
 
     function drag_drop_zone() {
-        document.addEventListener("DOMContentLoaded", () => {
+        window.addEventListener("load", () => { 
             console.log('drag drop zone loaded');
             const dropZone = document.getElementById('drop-zone');
             if (!dropZone) return;
@@ -188,26 +207,18 @@ app.get('/test', (req, res) => {
             Script({ src: 'https://unpkg.com/htmx.org@1.9.10' }),
             // tailwind
             Link({ rel: 'stylesheet', href: 'https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css' }),
-            // prismjs
-            // Link({ rel: 'stylesheet', href: 'https://cdnjs.cloudflare.com/ajax/libs/prism/1.23.0/themes/prism-tomorrow.css' }),
-            // Script({ src: 'https://cdnjs.cloudflare.com/ajax/libs/prism/1.23.0/prism.min.js' }),
 
-        //     <style>
-        //     pre > code {
-        //         @apply bg-gray-800 text-white p-2 rounded;
-        //     }
-        //     pre > code::before {
-        //         @apply content-['```'];
-        //     }
-        //     pre > code::after {
-        //         @apply content-['```'] !important;
-        //     }
-        // </style>
-         
-            // client script
-            Script({}, client_script),
-            Script({}, drag_drop_zone),
-            Script({}, client_ws),
+            // marked.js
+            Script({ src: 'https://cdn.jsdelivr.net/npm/marked/marked.min.js' }),
+
+            // prism.js
+            Link({ rel: 'stylesheet', href: './prism.css' }),
+            Script({ src: './prism.js' }),
+
+            // client scripts
+            Script({defer: undefined }, client_script),
+            Script({defer: undefined }, drag_drop_zone),
+            Script({defer: undefined }, client_ws),
 
         ),
         Body(
@@ -219,7 +230,11 @@ app.get('/test', (req, res) => {
             Div({ 'hx-get': '/test/increment', 'hx-trigger': 'click', 'hx-target': '#counter' }, 'Increment'),
             Div({ id: 'drop-zone', class: 'border-2 border-dashed border-gray-300 rounded-md p-4 m-4' }, 'Drop files here'),
             Div({ id: 'data-container', class: 'text-wrap' }),
-            Input({ id: 'message-input', type: 'text', placeholder: 'Type a message', class: 'border-2 border-gray-300 rounded-md p-4 m-4' }),
+            Input({ id: 'message-input',
+             type: 'text-area',
+             placeholder: 'Type a message',
+             class: 'border-2 border-gray-300 rounded-md p-4 m-4' 
+            }),
         )
     )
     res.send(html_root.toString());
