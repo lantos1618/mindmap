@@ -45,6 +45,11 @@ export function Script(attributes: Attributes = {}, ...children: (string | HtmlN
     return new HtmlNode('script', temp_children, attributes);
 }
 
+export function Style(attributes: Attributes = {}, ...children: (string | HtmlNode)[]) {
+    return new HtmlNode('style', children, attributes);
+}
+
+
 export function Title(...children: (string | HtmlNode)[]) {
     return new HtmlNode('title', children);
 }

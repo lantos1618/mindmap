@@ -3,7 +3,7 @@ import { createServer } from 'http';
 import { Server } from 'ws';
 import Groq from 'groq-sdk';
 import { randomUUID } from 'crypto';
-import { Body, Div, H1, Head, Html, Input, Link, Script } from './htmx';
+import { Body, Div, H1, Head, Html, Input, Link, Script, Style } from './htmx';
 
 
 const app = express();
@@ -12,7 +12,6 @@ const wss = new Server({ server });
 const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY
 });
-
 
 
 
@@ -117,19 +116,21 @@ app.get('/test', (req, res) => {
                     const choices = json.choices;
 
                     const message_data = choices[0].delta.content;
+                    if (!message_data) return;
 
                     // check to see if nonce div exists or create it
                     if (document.getElementById(`message_nonce-${message_nonce}`)) {
-                        const nonce_container = document.getElementById(`message_nonce-${message_nonce}`);
-                        if (!nonce_container) return;
-                        nonce_container.innerHTML += message_data;
+                        const message_container = document.getElementById(`message_nonce-${message_nonce}`);
+                        if (!message_container) return;
+                        message_container.innerHTML += message_data;
                     } else {
-                        const nonce_container = document.createElement('div');
-                        nonce_container.id = `message_nonce-${message_nonce}`;
-                        nonce_container.innerHTML += message_data;
+                        const message_container = document.createElement('pre');
+                        message_container.className = 'border-2 border-gray-300 rounded-md p-4 m-4 whitespace-pre-wrap	';
+                        message_container.id = `message_nonce-${message_nonce}`;
+                        message_container.innerHTML += message_data;
                         let container = document.getElementById('data-container');
                         if (!container) return;
-                        container.appendChild(nonce_container);
+                        container.appendChild(message_container);
                     }
                 }
             };
@@ -181,24 +182,44 @@ app.get('/test', (req, res) => {
     }
 
     let html_root = Html(
+
         Head(
             // import htmx
             Script({ src: 'https://unpkg.com/htmx.org@1.9.10' }),
             // tailwind
             Link({ rel: 'stylesheet', href: 'https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css' }),
+            // prismjs
+            // Link({ rel: 'stylesheet', href: 'https://cdnjs.cloudflare.com/ajax/libs/prism/1.23.0/themes/prism-tomorrow.css' }),
+            // Script({ src: 'https://cdnjs.cloudflare.com/ajax/libs/prism/1.23.0/prism.min.js' }),
+
+        //     <style>
+        //     pre > code {
+        //         @apply bg-gray-800 text-white p-2 rounded;
+        //     }
+        //     pre > code::before {
+        //         @apply content-['```'];
+        //     }
+        //     pre > code::after {
+        //         @apply content-['```'] !important;
+        //     }
+        // </style>
+         
             // client script
             Script({}, client_script),
             Script({}, drag_drop_zone),
-            Script({}, client_ws)
+            Script({}, client_ws),
+
         ),
         Body(
-            {},
+            {
+                class: 'p-4'
+            },
             Div({ id: 'hello' }, 'Hello, World!'),
             Div({ id: 'counter' }, `${count}`),
             Div({ 'hx-get': '/test/increment', 'hx-trigger': 'click', 'hx-target': '#counter' }, 'Increment'),
             Div({ id: 'drop-zone', class: 'border-2 border-dashed border-gray-300 rounded-md p-4 m-4' }, 'Drop files here'),
-            Div({ id: 'data-container' }),
-            Input({ id: 'message-input', type: 'text', placeholder: 'Type a message', class: 'border-2 border-gray-300 rounded-md p-2 m-2'}),
+            Div({ id: 'data-container', class: 'text-wrap' }),
+            Input({ id: 'message-input', type: 'text', placeholder: 'Type a message', class: 'border-2 border-gray-300 rounded-md p-4 m-4' }),
         )
     )
     res.send(html_root.toString());
