@@ -5,7 +5,6 @@ import Groq from 'groq-sdk';
 import { randomUUID } from 'crypto';
 import { Body, Div, H1, Head, Html, Input, Link, Script, Style, TextArea } from './htmx';
 import { bottleneck } from './bottleneck';
-import { stream_listen, stream_publish, video_stream_listener, video_stream_publisher } from './webchat';
 
 
 const app = express();
@@ -91,11 +90,6 @@ app.get('/test/increment', (req, res) => {
 app.get('/bottleneck', bottleneck);
 
 
-app.get('/stream_publish', stream_publish)
-app.get('/stream_listen', stream_listen)
-
-app.get('/video_stream_publisher', video_stream_publisher)
-app.get('/video_stream_listener', video_stream_listener)
 
 
 app.get('/test', (req, res) => {
@@ -120,7 +114,6 @@ app.get('/test', (req, res) => {
         window.addEventListener("load", () => {
             let messages = {};
             window.messages = messages;
-            let lastMesssageRan = '';
 
             console.log('client ws loaded');
             // JavaScript to handle WebSocket communication
@@ -169,11 +162,8 @@ app.get('/test', (req, res) => {
                         result += text[i];
                     }
                 }
-
                 return result;
             }
-
-            window.xmlSanitize = xmlSanitize;
 
             function marked_parse(dirty_text) {
                 const clean_text = xmlSanitize(dirty_text);
@@ -221,14 +211,10 @@ app.get('/test', (req, res) => {
                     let container = document.getElementById('messages-container');
                     if (!container) throw new Error("found null");
 
-                    if (lastMesssageRan === '') {
-                        lastMesssageRan = message_nonce;
-                    }
+
 
                     container.scrollTop = container.scrollHeight;
                 }
-
-        
 
             };
 
@@ -237,57 +223,94 @@ app.get('/test', (req, res) => {
                 if (!message_input) throw new Error("found null");
 
                 const message = message_input.value;
-                console.log(message)
                 ws.send(JSON.stringify({ content: message, role: 'assistant', name: 'John Doe' }));
+
+                // Get the current history from local storage or initialize it as an empty array
+                let user_message_history = JSON.parse(localStorage.getItem('user_message_history') || '[]');
+
+                // Add the new message to the history
+                user_message_history.push({ content: message, role: 'user', name: 'John Doe' });
+
+                // Store the updated history back in local storage
+                localStorage.setItem('user_message_history', JSON.stringify(user_message_history));
+
+                console.log('history', user_message_history);
+            }
+
+            let historyIndex = -1;
+            function scrollHistory(up: boolean) {
+
+                const messageHistory = JSON.parse(localStorage.getItem('user_message_history') || '[]');
+                if (!messageHistory.length) return; // exit if no message history
+
+                const messageInput = document.getElementById('message-input') as HTMLInputElement;
+                if (!messageInput) throw new Error("found null");
+
+                if (up) {
+                    if (historyIndex < messageHistory.length - 1) {
+                        historyIndex++;
+                    }
+                } else {
+                    if (historyIndex > 0) {
+                        historyIndex--;
+                    }
+                }
+
+                messageInput.value = messageHistory[messageHistory.length - 1 - historyIndex].content;
+
+                // Set the cursor to the end of the input
+                messageInput.selectionStart = messageInput.selectionEnd = messageInput.value.length;
+
             }
 
             document.getElementById('message-input')?.addEventListener('keydown', (event) => {
                 if (event.key === 'Enter' && event.ctrlKey) {
                     sendMessage();
                 }
-            }
 
+                if (event.key === 'ArrowUp' && event.shiftKey) {
+                    event.preventDefault(); // prevent default scrolling behavior
+                    scrollHistory(true);
+                } else if (event.key === 'ArrowDown' && event.shiftKey) {
+                    event.preventDefault(); // prevent default scrolling behavior
+                    scrollHistory(false);
+                }
+            });
 
-            );
 
             // ctrl + r to visualize code
 
             document.addEventListener('keydown', function (event) {
                 if (event.key === 'r' && event.ctrlKey) {
-                    console.log("visualizing code");
 
-             
-                    let query = "#message-nonce-" + lastMesssageRan + " pre code";
-                    console.log(query);
-                    const code_blocks = document.querySelectorAll(query);
-                    if (!code_blocks) {
-                        console.log('no code block found');
-                        return;
-                    }
-                    const last_code_block = code_blocks[code_blocks.length - 1];
+                    // match ```javascript or ```css or ```html anywhere in the message
+                    let message = messages[Object.keys(messages)[Object.keys(messages).length - 1]] as string;
 
-                    if (!last_code_block) {
-                        console.log('no code block found');
-                        return;
-                    }
+                    const code_blocks = message.match(/```(js|javascript|css|html)[\s\S]*?```/g) as string[] || [];
+                    console.log("visualizing code", code_blocks);
 
-                    // if the last message was rerun then combine the code blocks
+                    if (code_blocks.length === 0) return;
 
                     let code = '';
 
-                    if (lastMesssageRan === Object.keys(messages)[Object.keys(messages).length - 1]) {
-                        for (let i = 0; i < code_blocks.length; i++) {
-                            // if code block has class language-js or language-javascript then wrap in script tag
-                            if (code_blocks[i].classList.contains('language-js') || code_blocks[i].classList.contains('language-javascript')) {
-                                code += "<script>"  + code_blocks[i].innerText + "</";
-                                
-                                code += "script>";
-                            } else {
-                                code += code_blocks[i].innerText;
-                            }
+                    for (let i = 0; i < code_blocks.length; i++) {
+                        // if code block has class language-js or language-javascript then wrap in script tag
+                        if (code_blocks[i].startsWith('```js')) {
+                            code += "<script>" + code_blocks[i].substring(6, code_blocks[i].length - 4) + "</";
+                            code += "script>";
+                        } else if (code_blocks[i].startsWith('```javascript')) {
+                            code += "<script>" + code_blocks[i].substring(13, code_blocks[i].length - 4) + "</";
+                            code += "script>";
                         }
-                    } else {
-                        code = last_code_block.innerText;
+                        else if (code_blocks[i].startsWith('```html')) {
+                            code += code_blocks[i].substring(7, code_blocks[i].length - 4);
+                        }
+                        else if (code_blocks[i].startsWith('```css')) {
+                            code += "<style>" + code_blocks[i].substring(6, code_blocks[i].length - 4) + "</";
+                            code += "style>";
+                        } else {
+                            code += code_blocks[i];
+                        }
                     }
 
 
@@ -302,8 +325,6 @@ app.get('/test', (req, res) => {
                     code_container.innerHTML = '';
                     code_container.appendChild(iframe);
 
-                    lastMesssageRan = Object.keys(messages)[Object.keys(messages).length - 1];
-                    console.log(lastMesssageRan, Object.keys(messages)[Object.keys(messages).length - 1]);
                 }
             });
 
@@ -374,7 +395,9 @@ app.get('/test', (req, res) => {
         ),
         Body(
             {
-                class: 'p-4'
+                // dark like atom dark #282c34
+                // class: 'p-4 text-white',
+                // style: 'background-color: #121212'
             },
             Div({ id: 'hello' }, 'Hello, World!'),
             Div({ id: 'counter' }, `${count}`),
@@ -389,8 +412,8 @@ app.get('/test', (req, res) => {
                 TextArea({
                     id: 'message-input',
                     placeholder: 'Type a message',
-                    class: 'border-2 border-gray-300 rounded-md p-4 m-4 flex-grow overflow-y-auto',
-                    style: "max-height: 300px;"
+                    class: 'p-4 m-4 border-2 border-gray-300 rounded-md',
+                    style: "max-height: 300px; background: inherit"
                 }),
             ),
         ),
