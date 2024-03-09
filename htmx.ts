@@ -103,6 +103,10 @@ export function Input(attributes: Attributes = {}) {
     return new HtmlNode('input', [], attributes);
 }
 
+export function TextArea(attributes: Attributes = {}, ...children: (string | HtmlNode)[]) {
+    return new HtmlNode('textarea', children, attributes);
+}
+
 export function Button(attributes: Attributes = {}, ...children: (string | HtmlNode)[]) {
     return new HtmlNode('button', children, attributes);
 }
