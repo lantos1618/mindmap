@@ -32,7 +32,16 @@ wss.on('connection', (ws) => {
 
         try {
             const groqStream = await groq.chat.completions.create({
+                
                 messages: [
+                    {
+                        content: `USE  ONLY ONE \`\`\` CODE BLOCK be sure tag it html;
+                        Tailwind, 
+                        wrap any javascript with window.addEventListner('load', ...), 
+                        show all code,
+                        CODE ONLY, NO TALKING`,
+                        role: 'system',
+                    },
                     message
                 ],
                 // model: "mixtral-8x7b-32768",
@@ -118,6 +127,7 @@ app.get('/test', (req, res) => {
 
     }
 
+
     function client_ws() {
 
         window.addEventListener("load", () => {
@@ -133,7 +143,6 @@ app.get('/test', (req, res) => {
                 window.markedHighlight.markedHighlight({
                     langPrefix: 'hljs language-',
                     highlight(code, lang, info) {
-
                         const language = lang || 'plaintext';
                         return hljs.highlight(code, { language }).value;
                         // return code
@@ -141,132 +150,85 @@ app.get('/test', (req, res) => {
                 })
             );
 
-            function xmlSanitize(s: string): string {
+            function xmlSanitize(s: string): String {
                 let blocks: Block[] = [];
             
                 let start = 0;
                 let end = 0;
                 while (end < s.length) {
-                    let match = ''
 
-                    // count consecutive backticks
-                    let count = 1;
-                    while (s[end + count] === '`' && (end + count) < s.length) {
-                        count++;
-                    }
+                    // skip already back ticked code blocks 
+                    if (s.startsWith("`", end)) {
+                        // count number of backticks
+                        let count = 0;
+                        let match = "";
+                        while (s.startsWith("`", end + count)) {
+                            count++;
+                            match += "`";
+                        }
 
-                    match = '`'.repeat(count);
-
-                    console.log("count", count, match);
-                    if (s.startsWith(match, end)) {
-                        // find next ```
-                        start = end;
-                        end += match.length ;
+                        // find the end of the code block
+                        end += count;
                         while (end < s.length && !s.startsWith(match, end)) {
                             end++;
                         }
-                        end += match.length ;
-                        blocks.push({ value: s.substring(start + match.length , end - match.length ), type: "code" });
-                    } else {
+                        end += count;
+                        blocks.push({ value: s.substring(start, end), type: "code" });
+
+                        // skip to end of code block
                         start = end;
-                        while (end < s.length && !s.startsWith(match, end)) {
+                        continue;
+                    }
+
+
+                    // find xml blocks
+                    if (s.startsWith("<", end)) {
+                        // get tag
+                        let tag = "";
+                        end++;
+                        while (end < s.length && !s.startsWith(">", end)) {
                             end++;
                         }
-                        blocks.push({ value: s.substring(start, end), type: "text" });
+                        end++;
+                        tag = s.substring(start, end);
+
+                        // find end tag
+                        let end_tag = "</" + tag.substring(1);
+                        end = s.indexOf(end_tag, start);
+                        end += end_tag.length;
+                        blocks.push({ value: s.substring(start, end), type: "xml" });
+                        start = end;
+                        continue;
+
                     }
-            
+
+                    // find text blocks
+                    while (end < s.length && !s.startsWith("<", end) && !s.startsWith("`", end)) {
+                        end++;
+                    }
+                    blocks.push({ value: s.substring(start, end), type: "text" });
+                    start = end;
+                    continue;
+
                 }
-            
-                // attempt to parse xml or return text
-                let new_blocks: Block[] = blocks.flatMap((block) => {
-                    let temp_blocks: Block[] = [];
-                    if (block.type === "text") {
-                        let cursor = 0;
-                        while (cursor < block.value.length) {
-                            // try parse xml
-                            if (block.value.startsWith("<", cursor)) {
-                                // if <! | <? parse until > and add to temp_blocks
-                                // if <tag> parse until </tag> and add to temp_blocks
-                                // if <tag /> add to temp_blocks
-            
-                                if (block.value.startsWith("<!", cursor) || block.value.startsWith("<?", cursor)) {
-                                    let start = cursor;
-                                    while (cursor < block.value.length && !block.value.startsWith(">", cursor)) {
-                                        cursor++;
-                                    }
-                                    cursor++;
-                                    temp_blocks.push({ value: block.value.substring(start, cursor), type: "xml" });
-                                }
-            
-            
-                                if (block.value.startsWith("<", cursor)) {
-                                    let start = cursor;
-                                    let tag = "";
-                                    cursor++;
-                                    // skip whitespace
-                                    while (cursor < block.value.length && (block.value[cursor] == ' ' && block.value[cursor] == '\n')) {
-                                        cursor++;
-                                    }
-            
-                                    // get tag
-                                    while (cursor < block.value.length && (block.value[cursor] !== " " && block.value[cursor] !== ">" && block.value[cursor] !== "/")) {
-                                        tag += block.value[cursor];
-                                        cursor++;
-                                    }
-                                    // skip until >
-                                    while (cursor < block.value.length && block.value[cursor] !== ">") {
-                                        cursor++;
-                                    }
-                                    cursor++;
-            
-                                    console.log("tag", tag);
-            
-                                    // find closing tag
-                                    let closing_tag = `</${tag}>`;
-                                    while (cursor < block.value.length && !block.value.startsWith(closing_tag, cursor)) {
-                                        cursor++;
-                                    }
-            
-                                    cursor += closing_tag.length;
-                                    temp_blocks.push({ value: block.value.substring(start, cursor), type: "xml" });
-            
-                                    console.log("closing_tag", block.value.substring(start, cursor));
-            
-                                }
-            
-                            } else {
-                                // parse string 
-                                let start = cursor;
-                                while (cursor < block.value.length && !block.value.startsWith("<", cursor)) {
-                                    cursor++;
-                                }
-                                temp_blocks.push({ value: block.value.substring(start, cursor), type: "text" });
-            
-                            }
-                        }
-                    } else {
-                        temp_blocks.push(block);
-                    }
-                    return temp_blocks;
-                });
-            
-                console.log("new_blocks\n----------\n", new_blocks);
-            
-            
-                return new_blocks.map((block) => {
-                    if (block.type === "text") {
+
+
+                let final = blocks.map(block => {
+                    if (block.type === "code") {
                         return block.value;
                     }
-                    if (block.type === "code") {
-                        return '\n```' + block.value + '```\n';
-                    }
                     if (block.type === "xml") {
-                        return '\n```html\n' + block.value + '\n```\n';
+                        return "```html" + block.value + "```\n";
                     }
+                    return block.value;
                 }).join('');
-            };
-            
+                // console.log("original", s);
+                // console.log("blocks", blocks);
+                // console.log("final", final);
 
+                return final
+            }
+            
 
   
 
@@ -277,17 +239,13 @@ app.get('/test', (req, res) => {
                     message_nonce = message.message_nonce;
                 }
                 if (message.type === 'data') {
-
                     const choices = message.content.choices;
-
                     const message_data = choices[0].delta.content;
-
                     if (!message_data) return;
 
                     if (!messages[message_nonce]) messages[message_nonce] = '';
 
                     messages[message_nonce] += message_data;
-
 
                     let message_sanitized = marked.parse( xmlSanitize(messages[message_nonce]));
                     
@@ -322,7 +280,6 @@ app.get('/test', (req, res) => {
                     let message_sanitized = xmlSanitize(message_data)
                     messages[message_nonce+"-sanitized"] = message_sanitized
                 }
-
             };
 
             function sendMessage() {
@@ -330,7 +287,7 @@ app.get('/test', (req, res) => {
                 if (!message_input) throw new Error("found null");
 
                 const message = message_input.value;
-                ws.send(JSON.stringify({ content: message, role: 'assistant', name: 'John Doe' }));
+                ws.send(JSON.stringify({ content: Object.values(messages).join(" ") + message, role: 'assistant', name: 'John Doe' }));
 
                 // Get the current history from local storage or initialize it as an empty array
                 let user_message_history = JSON.parse(localStorage.getItem('user_message_history') || '[]');
@@ -393,7 +350,7 @@ app.get('/test', (req, res) => {
                     let message = messages[message_id] as string;
                     console.log("visualizing code, message:", message, message_id);
                     // match ```javascript or ```css or ```html anywhere in the message
-                    const code_blocks = message.match(/```(js|javascript|css|html)[\s\S]*?```/g) as string[] || [];
+                    const code_blocks = message.match(/```(js|javascript|css|html)?[\s\S]*?```/g) as string[] || [];
                     console.log("visualizing code", code_blocks);
 
                     if (code_blocks.length === 0) return;
